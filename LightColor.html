@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>画板 + 实时渲染 · 平面/立体模式</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: #14151f;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .card {
+            background: #1e1f2e;
+            border-radius: 36px;
+            padding: 30px 28px 34px;
+            max-width: 900px;
+            width: 100%;
+            box-shadow: 0 24px 48px rgba(0,0,0,0.7);
+            border: 1px solid #34364b;
+        }
+        .canvas-row {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .canvas-wrapper {
+            background: #0d0e14;
+            border-radius: 24px;
+            padding: 14px;
+            box-shadow: inset 0 6px 12px rgba(0,0,0,0.7);
+            flex: 1;
+            min-width: 260px;
+        }
+        .canvas-wrapper canvas {
+            display: block;
+            width: 100%;
+            height: auto;
+            aspect-ratio: 1 / 1;
+            background: #0d0e14;
+            border-radius: 16px;
+            touch-action: none;
+        }
+        .canvas-wrapper .label {
+            color: #7a7d9a;
+            font-size: 0.7rem;
+            text-align: center;
+            margin-top: 8px;
+            letter-spacing: 0.3px;
+        }
+        .controls-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+            margin-top: 20px;
+        }
+        .control-group {
+            background: #262738;
+            border-radius: 20px;
+            padding: 16px 18px 18px;
+            border: 1px solid #3a3c54;
+        }
+        .control-group.full {
+            grid-column: 1 / -1;
+        }
+        .group-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #b6b9d0;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+            margin-bottom: 14px;
+        }
+        .group-title span {
+            background: #3f415e;
+            padding: 2px 10px;
+            border-radius: 40px;
+            font-size: 0.65rem;
+            color: #d0d3ec;
+        }
+        .slider-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+        .slider-row:last-child {
+            margin-bottom: 0;
+        }
+        .slider-row label {
+            min-width: 52px;
+            color: #c8cbe6;
+            font-size: 0.85rem;
+            font-weight: 450;
+        }
+        .slider-row input[type="range"] {
+            flex: 1;
+            height: 4px;
+            -webkit-appearance: none;
+            background: #4a4d6b;
+            border-radius: 8px;
+            outline: none;
+        }
+        .slider-row input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #b7bcf0;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid #181a26;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.6);
+        }
+        .slider-row input[type="range"]::-webkit-slider-thumb:hover {
+            background: #d6dbff;
+            transform: scale(1.12);
+        }
+        .slider-row input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: #b7bcf0;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid #181a26;
+        }
+        .value-badge {
+            min-width: 38px;
+            text-align: right;
+            color: #e0e3ff;
+            font-size: 0.85rem;
+            font-weight: 500;
+            background: #181a26;
+            padding: 2px 10px;
+            border-radius: 40px;
+            font-variant-numeric: tabular-nums;
+        }
+        .color-picker-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .color-picker-row label {
+            color: #c8cbe6;
+            font-size: 0.85rem;
+            font-weight: 450;
+            min-width: 52px;
+        }
+        .color-picker-row input[type="color"] {
+            width: 40px;
+            height: 40px;
+            border: 2px solid #4a4d6b;
+            border-radius: 60px;
+            background: none;
+            padding: 2px;
+            cursor: pointer;
+        }
+        .color-picker-row input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 0;
+        }
+        .color-picker-row input[type="color"]::-webkit-color-swatch {
+            border: none;
+            border-radius: 60px;
+        }
+        .color-hex {
+            background: #181a26;
+            padding: 4px 12px;
+            border-radius: 60px;
+            color: #bdc1e6;
+            font-size: 0.75rem;
+            font-weight: 400;
+            letter-spacing: 0.4px;
+            border: 1px solid #3a3c54;
+        }
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            color: #c8cbe6;
+            font-size: 0.85rem;
+            margin-top: 6px;
+            flex-wrap: wrap;
+        }
+        .checkbox-row label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+        }
+        .checkbox-row input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: #7c8cff;
+            cursor: pointer;
+        }
+        .btn-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 6px;
+        }
+        .btn {
+            background: #3a3c54;
+            border: none;
+            color: #e0e3ff;
+            padding: 6px 16px;
+            border-radius: 40px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: 0.15s;
+        }
+        .btn:hover {
+            background: #4e5170;
+        }
+        .btn.primary {
+            background: #5c6bcf;
+        }
+        .btn.primary:hover {
+            background: #7a88e0;
+        }
+        .footer-note {
+            text-align: center;
+            color: #5f6282;
+            font-size: 0.7rem;
+            margin-top: 20px;
+            letter-spacing: 0.3px;
+            border-top: 1px solid #2f3143;
+            padding-top: 16px;
+        }
+        @media (max-width: 640px) {
+            .controls-grid { grid-template-columns: 1fr; }
+            .card { padding: 16px; }
+            .slider-row { flex-wrap: wrap; gap: 4px; }
+            .slider-row label { min-width: 36px; font-size: 0.75rem; }
+            .canvas-row { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+<div class="card">
+    <!-- 双画布 -->
+    <div class="canvas-row">
+        <div class="canvas-wrapper">
+            <canvas id="drawCanvas" width="400" height="400"></canvas>
+            <div class="label">✏️ 画板 · 用鼠标/手指绘制</div>
+        </div>
+        <div class="canvas-wrapper">
+            <canvas id="renderCanvas" width="400" height="400"></canvas>
+            <div class="label">🎨 渲染结果 · 平面/立体模式</div>
+        </div>
+    </div>
+
+    <!-- 控制面板 -->
+    <div class="controls-grid">
+        <!-- 画笔 -->
+        <div class="control-group">
+            <div class="group-title">🖌️ 画笔 <span>颜色 & 大小</span></div>
+            <div class="color-picker-row">
+                <label>颜色</label>
+                <input type="color" id="brushColorPicker" value="#ff6b6b">
+                <span class="color-hex" id="brushColorHex">#FF6B6B</span>
+            </div>
+            <div class="slider-row" style="margin-top: 10px;">
+                <label>大小</label>
+                <input type="range" id="brushSizeSlider" min="2" max="40" step="1" value="12">
+                <span class="value-badge" id="brushSizeValue">12</span>
+            </div>
+            <div class="btn-row">
+                <button class="btn" id="clearDrawBtn">🗑️ 清空画板</button>
+                <button class="btn primary" id="sampleBtn">📥 采样为物体颜色</button>
+                <button class="btn primary" id="fillBtn">🪣 一键填充</button>
+            </div>
+        </div>
+
+        <!-- 光照 -->
+        <div class="control-group">
+            <div class="group-title">💡 光源 <span>颜色 & 强度</span></div>
+            <div class="color-picker-row" style="margin-bottom: 8px;">
+                <label>颜色</label>
+                <input type="color" id="lightColorPicker" value="#ffd78a">
+                <span class="color-hex" id="lightColorHex">#FFD78A</span>
+            </div>
+            <div class="slider-row">
+                <label>强度</label>
+                <input type="range" id="intensitySlider" min="0.0" max="3.0" step="0.01" value="1.4">
+                <span class="value-badge" id="intensityValue">1.40</span>
+            </div>
+            <div class="checkbox-row" style="margin-top: 8px;">
+                <label>
+                    <input type="checkbox" id="directLightToggle" checked>
+                    启用直接光
+                </label>
+            </div>
+        </div>
+
+        <!-- 环境光 -->
+        <div class="control-group">
+            <div class="group-title">🌥️ 环境光 <span>Ambient</span></div>
+            <div class="color-picker-row" style="margin-bottom: 8px;">
+                <label>颜色</label>
+                <input type="color" id="ambientColorPicker" value="#4a6a8a">
+                <span class="color-hex" id="ambientColorHex">#4A6A8A</span>
+            </div>
+            <div class="slider-row">
+                <label>强度</label>
+                <input type="range" id="ambientIntensitySlider" min="0.0" max="0.6" step="0.01" value="0.15">
+                <span class="value-badge" id="ambientIntensityValue">0.15</span>
+            </div>
+            <div class="checkbox-row" style="margin-top: 8px;">
+                <label>
+                    <input type="checkbox" id="ambientLightToggle" checked>
+                    启用环境光
+                </label>
+            </div>
+        </div>
+
+        <!-- 渲染模式 -->
+        <div class="control-group">
+            <div class="group-title">🧊 渲染模式 <span>立体感</span></div>
+            <div class="checkbox-row" style="flex-direction: column; align-items: flex-start; gap: 8px;">
+                <label>
+                    <input type="checkbox" id="stereoToggle" checked>
+                    启用立体感（明暗渐变）
+                </label>
+                <label style="color: #7a7d9a; font-size: 0.75rem;">
+                    ⚡ 关闭时：显示画板颜色的平均色 + 光照（无渐变）
+                </label>
+            </div>
+            <div class="slider-row" style="margin-top: 10px;">
+                <label>粗糙度</label>
+                <input type="range" id="roughnessSlider" min="0.0" max="1.0" step="0.01" value="0.45">
+                <span class="value-badge" id="roughnessValue">0.45</span>
+            </div>
+        </div>
+    </div>
+    <div class="footer-note">⚡ 平面模式：画板平均色 + 光照计算 · 立体模式：逐像素光照 + 明暗渐变</div>
+</div>
+
+<script>
+    (function() {
+        // ------ 画板 ------
+        const drawCanvas = document.getElementById('drawCanvas');
+        const drawCtx = drawCanvas.getContext('2d');
+        const drawW = drawCanvas.width, drawH = drawCanvas.height;
+        const bgColor = '#2a2b3a';
+        drawCtx.fillStyle = bgColor;
+        drawCtx.fillRect(0, 0, drawW, drawH);
+
+        // ------ 渲染画布 ------
+        const renderCanvas = document.getElementById('renderCanvas');
+        const renderCtx = renderCanvas.getContext('2d');
+        const rW = renderCanvas.width, rH = renderCanvas.height;
+
+        // ------ DOM ------
+        const brushColorPicker = document.getElementById('brushColorPicker');
+        const brushColorHex = document.getElementById('brushColorHex');
+        const brushSizeSlider = document.getElementById('brushSizeSlider');
+        const brushSizeValue = document.getElementById('brushSizeValue');
+        const clearDrawBtn = document.getElementById('clearDrawBtn');
+        const sampleBtn = document.getElementById('sampleBtn');
+        const fillBtn = document.getElementById('fillBtn');
+
+        const lightColorPicker = document.getElementById('lightColorPicker');
+        const lightColorHex = document.getElementById('lightColorHex');
+        const intensitySlider = document.getElementById('intensitySlider');
+        const intensityValue = document.getElementById('intensityValue');
+        const ambientColorPicker = document.getElementById('ambientColorPicker');
+        const ambientColorHex = document.getElementById('ambientColorHex');
+        const ambientIntensitySlider = document.getElementById('ambientIntensitySlider');
+        const ambientIntensityValue = document.getElementById('ambientIntensityValue');
+        const directLightToggle = document.getElementById('directLightToggle');
+        const ambientLightToggle = document.getElementById('ambientLightToggle');
+        const stereoToggle = document.getElementById('stereoToggle');
+        const roughnessSlider = document.getElementById('roughnessSlider');
+        const roughnessValue = document.getElementById('roughnessValue');
+
+        // ------ 状态 ------
+        let brushColor = { r: 255, g: 107, b: 107 };
+        let brushSize = 12;
+        let isDrawing = false;
+
+        let lightColor = { r: 255, g: 215, b: 138 };
+        let ambientColor = { r: 74, g: 106, b: 138 };
+        let intensity = 1.4;
+        let ambientIntensity = 0.15;
+        let roughness = 0.45;
+        let directLightEnabled = true;
+        let ambientLightEnabled = true;
+        let stereoEnabled = true;
+
+        const lightDir = { x: -0.55, y: -0.45, z: 0.75 };
+        const len = Math.sqrt(lightDir.x*lightDir.x + lightDir.y*lightDir.y + lightDir.z*lightDir.z);
+        if (len > 0.001) { lightDir.x /= len; lightDir.y /= len; lightDir.z /= len; }
+
+        // ------ 撤销/重做历史 (基于完整笔画) ------
+        const MAX_HISTORY = 40;
+        // history 存储的是完整画布快照 (ImageData)
+        let history = [];
+        let historyIndex = -1;
+
+        // 保存当前画布状态到历史 (在每一笔结束时调用)
+        function saveState() {
+            // 如果当前不在历史末尾，则截断后续历史
+            if (historyIndex < history.length - 1) {
+                history = history.slice(0, historyIndex + 1);
+            }
+            const imageData = drawCtx.getImageData(0, 0, drawW, drawH);
+            history.push(imageData);
+            if (history.length > MAX_HISTORY) {
+                history.shift();
+            }
+            historyIndex = history.length - 1;
+        }
+
+        // 恢复到指定历史索引
+        function restoreState(index) {
+            if (index < 0 || index >= history.length) return;
+            const imageData = history[index];
+            drawCtx.putImageData(imageData, 0, 0);
+            renderFromDraw();
+        }
+
+        function undo() {
+            if (historyIndex > 0) {
+                historyIndex--;
+                restoreState(historyIndex);
+            }
+        }
+
+        function redo() {
+            if (historyIndex < history.length - 1) {
+                historyIndex++;
+                restoreState(historyIndex);
+            }
+        }
+
+        // 初始化历史 (包含初始空白画板)
+        function initHistory() {
+            history = [];
+            const initial = drawCtx.getImageData(0, 0, drawW, drawH);
+            history.push(initial);
+            historyIndex = 0;
+        }
+        initHistory();
+
+        // 标记当前是否在一笔绘制中 (用于在一笔结束时保存历史)
+        let isStrokeActive = false;
+
+        // 结束当前笔画：保存历史并重置标记
+        function endStroke() {
+            if (isStrokeActive) {
+                saveState();
+                isStrokeActive = false;
+            }
+        }
+
+        // ------ 工具 ------
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex.trim());
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : { r: 128, g: 128, b: 128 };
+        }
+
+        function rgbToHex(r, g, b) {
+            const clamp = (v) => Math.min(255, Math.max(0, Math.round(v)));
+            return '#' + [clamp(r), clamp(g), clamp(b)].map(c => c.toString(16).padStart(2, '0')).join('').toUpperCase();
+        }
+
+        function updateHexLabels() {
+            brushColorHex.textContent = rgbToHex(brushColor.r, brushColor.g, brushColor.b);
+            lightColorHex.textContent = rgbToHex(lightColor.r, lightColor.g, lightColor.b);
+            ambientColorHex.textContent = rgbToHex(ambientColor.r, ambientColor.g, ambientColor.b);
+        }
+
+        // 计算单个像素的光照颜色
+        function computeLighting(objR, objG, objB, normX, normY, normZ) {
+            const lightR = lightColor.r / 255;
+            const lightG = lightColor.g / 255;
+            const lightB = lightColor.b / 255;
+            const ambR = ambientColor.r / 255;
+            const ambG = ambientColor.g / 255;
+            const ambB = ambientColor.b / 255;
+            const ambInt = Math.max(0, ambientIntensity);
+            const inten = Math.max(0, intensity);
+            const rough = Math.max(0.01, Math.min(1, roughness));
+            const roughFactor = 1.0 - rough * 0.3;
+
+            const lx = lightDir.x, ly = lightDir.y, lz = lightDir.z;
+            const NdotL = Math.max(0, normX * lx + normY * ly + normZ * lz);
+            const diffuse = inten * NdotL;
+            const ambient = ambInt;
+
+            let finalR, finalG, finalB;
+            if (!directLightEnabled && !ambientLightEnabled) {
+                finalR = objR; finalG = objG; finalB = objB;
+            } else {
+                let directR = 0, directG = 0, directB = 0;
+                if (directLightEnabled) {
+                    const d = diffuse * roughFactor;
+                    directR = objR * d * lightR;
+                    directG = objG * d * lightG;
+                    directB = objB * d * lightB;
+                }
+                let ambR_contrib = 0, ambG_contrib = 0, ambB_contrib = 0;
+                if (ambientLightEnabled) {
+                    ambR_contrib = objR * ambient * ambR;
+                    ambG_contrib = objG * ambient * ambG;
+                    ambB_contrib = objB * ambient * ambB;
+                }
+                finalR = directR + ambR_contrib;
+                finalG = directG + ambG_contrib;
+                finalB = directB + ambB_contrib;
+            }
+            return {
+                r: Math.min(1, Math.max(0, finalR)),
+                g: Math.min(1, Math.max(0, finalG)),
+                b: Math.min(1, Math.max(0, finalB))
+            };
+        }
+
+        // ------ 渲染核心 ------
+        function renderFromDraw() {
+            const imageData = drawCtx.getImageData(0, 0, drawW, drawH);
+            const pixels = imageData.data;
+
+            // 计算画板平均色
+            let totalR = 0, totalG = 0, totalB = 0, count = 0;
+            for (let i = 0; i < pixels.length; i += 4) {
+                totalR += pixels[i];
+                totalG += pixels[i+1];
+                totalB += pixels[i+2];
+                count++;
+            }
+            const avgR = totalR / count / 255;
+            const avgG = totalG / count / 255;
+            const avgB = totalB / count / 255;
+
+            const rData = renderCtx.createImageData(rW, rH);
+            const out = rData.data;
+            const centerX = rW / 2, centerY = rH / 2;
+            const radius = Math.min(rW, rH) * 0.38;
+
+            const stereo = stereoEnabled;
+
+            for (let py = 0; py < rH; py++) {
+                for (let px = 0; px < rW; px++) {
+                    const dx = (px - centerX) / (radius * 1.0);
+                    const dy = (py - centerY) / (radius * 1.0);
+                    const dist2 = dx*dx + dy*dy;
+                    const idx = (py * rW + px) * 4;
+
+                    // 背景
+                    if (dist2 > 1.0) {
+                        const bgFactor = 0.06 + 0.03 * Math.sin(px*0.02 + py*0.025);
+                        out[idx] = 14 + 6 * bgFactor;
+                        out[idx+1] = 16 + 6 * bgFactor;
+                        out[idx+2] = 22 + 10 * bgFactor;
+                        out[idx+3] = 255;
+                        continue;
+                    }
+
+                    // 获取画板对应位置的颜色
+                    const mapX = Math.floor((dx * 0.5 + 0.5) * drawW);
+                    const mapY = Math.floor((dy * 0.5 + 0.5) * drawH);
+                    const cIdx = (mapY * drawW + mapX) * 4;
+                    let objR = avgR, objG = avgG, objB = avgB;
+                    if (cIdx >= 0 && cIdx < pixels.length) {
+                        objR = pixels[cIdx] / 255;
+                        objG = pixels[cIdx+1] / 255;
+                        objB = pixels[cIdx+2] / 255;
+                    }
+
+                    let finalR, finalG, finalB;
+
+                    if (!stereo) {
+                        // 平面模式
+                        const lighting = computeLighting(objR, objG, objB, 0, 0, 1);
+                        finalR = lighting.r;
+                        finalG = lighting.g;
+                        finalB = lighting.b;
+                    } else {
+                        // 立体模式
+                        const z = Math.sqrt(Math.max(0, 1 - dist2));
+                        const nx = dx, ny = dy, nz = z;
+                        const lenN = Math.sqrt(nx*nx + ny*ny + nz*nz);
+                        const normX = nx / lenN;
+                        const normY = ny / lenN;
+                        const normZ = nz / lenN;
+                        const lighting = computeLighting(objR, objG, objB, normX, normY, normZ);
+                        finalR = lighting.r;
+                        finalG = lighting.g;
+                        finalB = lighting.b;
+                    }
+
+                    out[idx] = Math.round(finalR * 255);
+                    out[idx+1] = Math.round(finalG * 255);
+                    out[idx+2] = Math.round(finalB * 255);
+                    out[idx+3] = 255;
+                }
+            }
+
+            renderCtx.putImageData(rData, 0, 0);
+
+            renderCtx.beginPath();
+            renderCtx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+            renderCtx.strokeStyle = 'rgba(210, 220, 255, 0.15)';
+            renderCtx.lineWidth = 2;
+            renderCtx.stroke();
+        }
+
+        // ------ 画板绘制 (按笔画) ------
+        // 绘制一个点，但不保存历史（由笔画结束时统一保存）
+        function drawPoint(clientX, clientY) {
+            const rect = drawCanvas.getBoundingClientRect();
+            const scaleX = drawW / rect.width;
+            const scaleY = drawH / rect.height;
+            const cx = (clientX - rect.left) * scaleX;
+            const cy = (clientY - rect.top) * scaleY;
+            if (cx < 0 || cx > drawW || cy < 0 || cy > drawH) return;
+
+            drawCtx.beginPath();
+            drawCtx.arc(cx, cy, brushSize / 2, 0, Math.PI * 2);
+            drawCtx.fillStyle = `rgb(${brushColor.r}, ${brushColor.g}, ${brushColor.b})`;
+            drawCtx.fill();
+            // 实时更新渲染，但不保存历史
+            renderFromDraw();
+        }
+
+        // 开始一笔
+        function startStroke(clientX, clientY) {
+            if (isStrokeActive) {
+                // 如果上一笔未正常结束，先结束
+                endStroke();
+            }
+            isStrokeActive = true;
+            drawPoint(clientX, clientY);
+        }
+
+        // 继续一笔
+        function continueStroke(clientX, clientY) {
+            if (!isStrokeActive) return;
+            drawPoint(clientX, clientY);
+        }
+
+        // 结束一笔 (保存历史)
+        function finishStroke() {
+            if (isStrokeActive) {
+                endStroke();
+            }
+        }
+
+        // ------ 特殊操作 (清空/填充/采样) 都作为独立的一笔 ------
+        function performActionAndSave(actionFn) {
+            // 先结束当前笔画
+            finishStroke();
+            // 执行操作
+            actionFn();
+            // 保存历史
+            saveState();
+            renderFromDraw();
+        }
+
+        function clearCanvas() {
+            drawCtx.fillStyle = bgColor;
+            drawCtx.fillRect(0, 0, drawW, drawH);
+        }
+
+        function fillCanvas() {
+            drawCtx.fillStyle = `rgb(${brushColor.r}, ${brushColor.g}, ${brushColor.b})`;
+            drawCtx.fillRect(0, 0, drawW, drawH);
+        }
+
+        function sampleDrawColor() {
+            const imageData = drawCtx.getImageData(0, 0, drawW, drawH);
+            const pixels = imageData.data;
+            let totalR = 0, totalG = 0, totalB = 0, count = 0;
+            for (let i = 0; i < pixels.length; i += 4) {
+                totalR += pixels[i];
+                totalG += pixels[i+1];
+                totalB += pixels[i+2];
+                count++;
+            }
+            const avgR = Math.round(totalR / count);
+            const avgG = Math.round(totalG / count);
+            const avgB = Math.round(totalB / count);
+            drawCtx.fillStyle = `rgb(${avgR}, ${avgG}, ${avgB})`;
+            drawCtx.fillRect(0, 0, drawW, drawH);
+        }
+
+        // ------ 事件绑定 ------
+        // 鼠标事件
+        drawCanvas.addEventListener('mousedown', (e) => {
+            startStroke(e.clientX, e.clientY);
+        });
+        drawCanvas.addEventListener('mousemove', (e) => {
+            if (isStrokeActive) continueStroke(e.clientX, e.clientY);
+        });
+        drawCanvas.addEventListener('mouseup', () => {
+            finishStroke();
+        });
+        drawCanvas.addEventListener('mouseleave', () => {
+            // 如果鼠标离开画布，强制结束笔画
+            if (isStrokeActive) finishStroke();
+        });
+
+        // 触摸事件
+        drawCanvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            startStroke(touch.clientX, touch.clientY);
+        });
+        drawCanvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            if (isStrokeActive) continueStroke(touch.clientX, touch.clientY);
+        });
+        drawCanvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            finishStroke();
+        });
+        drawCanvas.addEventListener('touchcancel', (e) => {
+            e.preventDefault();
+            finishStroke();
+        });
+
+        // 键盘快捷键 Ctrl+Z / Ctrl+Y
+        document.addEventListener('keydown', (e) => {
+            // 如果正在绘制，先结束笔画
+            if (isStrokeActive) finishStroke();
+            if (e.ctrlKey && e.key === 'z') {
+                e.preventDefault();
+                undo();
+            } else if (e.ctrlKey && e.key === 'y') {
+                e.preventDefault();
+                redo();
+            }
+        });
+
+        // 画笔
+        brushColorPicker.addEventListener('input', function(e) {
+            const hex = e.target.value;
+            brushColorHex.textContent = hex.toUpperCase();
+            const rgb = hexToRgb(hex);
+            brushColor.r = rgb.r; brushColor.g = rgb.g; brushColor.b = rgb.b;
+        });
+
+        brushSizeSlider.addEventListener('input', function(e) {
+            brushSize = parseFloat(e.target.value);
+            brushSizeValue.textContent = brushSize;
+        });
+
+        clearDrawBtn.addEventListener('click', function() {
+            performActionAndSave(clearCanvas);
+        });
+
+        sampleBtn.addEventListener('click', function() {
+            performActionAndSave(sampleDrawColor);
+        });
+
+        fillBtn.addEventListener('click', function() {
+            performActionAndSave(fillCanvas);
+        });
+
+        // 光照/渲染参数变化时重新渲染 (不改变历史)
+        lightColorPicker.addEventListener('input', function(e) {
+            const hex = e.target.value;
+            lightColorHex.textContent = hex.toUpperCase();
+            const rgb = hexToRgb(hex);
+            lightColor.r = rgb.r; lightColor.g = rgb.g; lightColor.b = rgb.b;
+            renderFromDraw();
+        });
+
+        intensitySlider.addEventListener('input', function(e) {
+            intensity = parseFloat(e.target.value);
+            intensityValue.textContent = intensity.toFixed(2);
+            renderFromDraw();
+        });
+
+        ambientColorPicker.addEventListener('input', function(e) {
+            const hex = e.target.value;
+            ambientColorHex.textContent = hex.toUpperCase();
+            const rgb = hexToRgb(hex);
+            ambientColor.r = rgb.r; ambientColor.g = rgb.g; ambientColor.b = rgb.b;
+            renderFromDraw();
+        });
+
+        ambientIntensitySlider.addEventListener('input', function(e) {
+            ambientIntensity = parseFloat(e.target.value);
+            ambientIntensityValue.textContent = ambientIntensity.toFixed(2);
+            renderFromDraw();
+        });
+
+        directLightToggle.addEventListener('change', function() {
+            directLightEnabled = this.checked;
+            renderFromDraw();
+        });
+
+        ambientLightToggle.addEventListener('change', function() {
+            ambientLightEnabled = this.checked;
+            renderFromDraw();
+        });
+
+        stereoToggle.addEventListener('change', function() {
+            stereoEnabled = this.checked;
+            renderFromDraw();
+        });
+
+        roughnessSlider.addEventListener('input', function(e) {
+            roughness = parseFloat(e.target.value);
+            roughnessValue.textContent = roughness.toFixed(2);
+            renderFromDraw();
+        });
+
+        window.addEventListener('resize', renderFromDraw);
+
+        // ------ 初始化 ------
+        updateHexLabels();
+        renderFromDraw();
+        console.log('✨ 画板 + 实时渲染已启动 · 撤销/重做基于每一笔 (Ctrl+Z / Ctrl+Y)');
+    })();
+</script>
+</body>
+</html>
